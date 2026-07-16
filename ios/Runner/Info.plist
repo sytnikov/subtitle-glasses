@@ -81,6 +81,14 @@
 	</array>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Needed to connect to your Meta Ray-Ban glasses.</string>
+	<!-- The Meta Wearables SDK references phone camera and microphone APIs
+	     (mock-device testing and stream audio), so App Store processing
+	     requires these purpose strings even though normal use captures
+	     photos only on the glasses. -->
+	<key>NSCameraUsageDescription</key>
+	<string>The phone camera is only used to simulate glasses during development testing. Subtitle photos are taken by your Meta Ray-Ban glasses.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Microphone access is required by the glasses streaming session. The app does not record audio.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Allows your phone to find and connect to your glasses over Wi-Fi.</string>
 	<key>NSBonjourServices</key>
