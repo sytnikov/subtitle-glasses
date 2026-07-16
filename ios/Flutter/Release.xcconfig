@@ -1,1 +1,12 @@
 #include "Generated.xcconfig"
+
+// Distribution signing for the Runner target's Release builds (CI/TestFlight).
+// This lives in the xcconfig rather than xcodebuild CLI overrides because CLI
+// overrides hit every target in the workspace — including Swift-package
+// resource bundles, which cannot take a provisioning profile and fail the
+// archive. Debug builds (flutter run) keep automatic development signing.
+CODE_SIGN_STYLE = Manual
+DEVELOPMENT_TEAM = LKLVLNJ27M
+CODE_SIGN_IDENTITY = Apple Distribution
+CODE_SIGN_IDENTITY[sdk=iphoneos*] = Apple Distribution
+PROVISIONING_PROFILE_SPECIFIER = subtitle-glasses-appstore
