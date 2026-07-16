@@ -41,6 +41,12 @@ class GlassesService extends ChangeNotifier with WidgetsBindingObserver {
       state,
     ) {
       registrationState = state;
+      if (state != RegistrationState.registered) {
+        // Camera permission is tied to the registration; a grant must not
+        // outlive it, or the next connect skips the grant step and the
+        // camera fails.
+        unawaited(_setCameraPermission(false));
+      }
       notifyListeners();
     });
 
@@ -54,11 +60,22 @@ class GlassesService extends ChangeNotifier with WidgetsBindingObserver {
     _streamErrorSub = MetaWearablesDat.streamSessionErrorStream().listen((
       error,
     ) {
+      if (_isPermissionDenied(error)) {
+        // "Allow once" grants expire after the session; revocations can
+        // also happen from Meta AI's settings. Drop the cached grant so
+        // the UI routes back to the grant step.
+        unawaited(_setCameraPermission(false));
+      }
       _streamErrorsController.add(_describeStreamError(error));
+      notifyListeners();
     });
 
     await refreshStatus();
   }
+
+  bool _isPermissionDenied(Object error) =>
+      (error is SessionError && error.isPermissionDenied) ||
+      error is PermissionError;
 
   String _describeStreamError(Object error) {
     if (error is SessionError) {
@@ -73,8 +90,8 @@ class GlassesService extends ChangeNotifier with WidgetsBindingObserver {
         return 'Stream stopped: the glasses disconnected.';
       }
       if (error.isPermissionDenied) {
-        return 'Stream stopped: camera permission was revoked. '
-            'Grant it again to continue.';
+        return 'Camera permission expired or was revoked (did you choose '
+            '"Allow once"?). Grant it again to continue.';
       }
       if (error.isTimeout) {
         return 'Stream stopped: the connection timed out.';
@@ -99,12 +116,19 @@ class GlassesService extends ChangeNotifier with WidgetsBindingObserver {
     } on Exception {
       // Keep the previous value; the registration stream will correct it.
     }
-    try {
-      final granted = await MetaWearablesDat.getCameraPermissionStatus();
-      await _setCameraPermission(granted);
-    } on Exception {
-      // Unanswerable right now (glasses disconnected) — keep the last
-      // known value rather than downgrading a real grant.
+    if (registrationState != RegistrationState.registered) {
+      // Invariant: no registration -> no camera permission. Without this,
+      // a stale SDK "granted" read after unpairing re-caches the flag and
+      // the next connect skips the grant step, breaking the camera.
+      await _setCameraPermission(false);
+    } else {
+      try {
+        final granted = await MetaWearablesDat.getCameraPermissionStatus();
+        await _setCameraPermission(granted);
+      } on Exception {
+        // Unanswerable right now (glasses disconnected) — keep the last
+        // known value rather than downgrading a real grant.
+      }
     }
     notifyListeners();
   }
@@ -177,6 +201,13 @@ class GlassesService extends ChangeNotifier with WidgetsBindingObserver {
       );
     } on DatError catch (e) {
       await _stopStreamQuietly();
+      if (_isPermissionDenied(e)) {
+        // An "Allow once" grant expired or the permission was revoked —
+        // drop the cache so the UI shows the grant step again.
+        await _setCameraPermission(false);
+        notifyListeners();
+        rethrow;
+      }
       final leftoverSession =
           e is DeviceSessionError && e.isSessionAlreadyExists;
       if (leftoverSession && retryOnExistingSession) {
@@ -213,6 +244,14 @@ class GlassesService extends ChangeNotifier with WidgetsBindingObserver {
   /// instead of "session interrupted". Kept on failure so the user can
   /// retry translating without recapturing.
   void clearCaptures() {
+    capturedImages.clear();
+    notifyListeners();
+  }
+
+  /// Abandons the session: stops the stream and discards any captures
+  /// without translating anything.
+  Future<void> cancelSession() async {
+    await _stopStreamQuietly();
     capturedImages.clear();
     notifyListeners();
   }

@@ -65,6 +65,10 @@ class _WatchScreenState extends State<WatchScreen> {
             'Please try again.';
       }
     }
+    if ((e is SessionError && e.isPermissionDenied) || e is PermissionError) {
+      return 'Camera permission expired or was revoked (did you choose '
+          '"Allow once"?). Grant it again to continue.';
+    }
     return e.message;
   }
 
@@ -90,6 +94,37 @@ class _WatchScreenState extends State<WatchScreen> {
   Future<void> _resumeSession() => _runGuarded(() {
     return context.read<GlassesService>().resumeSession();
   });
+
+  Future<void> _cancelSession() async {
+    final glasses = context.read<GlassesService>();
+    final captureCount = glasses.capturedImages.length;
+
+    if (captureCount > 0) {
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Discard session?'),
+          content: Text(
+            '$captureCount capture${captureCount == 1 ? '' : 's'} will be '
+            'discarded without translating.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(false),
+              child: const Text('Keep capturing'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              child: const Text('Discard'),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true) return;
+    }
+
+    await _runGuarded(() => glasses.cancelSession());
+  }
 
   Future<void> _capture() => _runGuarded(() {
     return context.read<GlassesService>().capture();
@@ -227,25 +262,62 @@ class _WatchScreenState extends State<WatchScreen> {
       );
     }
 
-    return Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          'Captured: ${glasses.capturedImages.length}',
-          style: Theme.of(context).textTheme.headlineSmall,
-        ),
-        const SizedBox(height: 24),
-        FilledButton.icon(
-          onPressed: _capture,
-          icon: const Icon(Icons.camera_alt),
-          label: const Text('Capture subtitle'),
-        ),
-        const SizedBox(height: 16),
-        OutlinedButton(
-          onPressed: glasses.capturedImages.isEmpty ? null : _stopAndTranslate,
-          child: const Text('Stop & translate'),
-        ),
-      ],
+    return _buildActiveSession(glasses);
+  }
+
+  Widget _buildActiveSession(GlassesService glasses) {
+    final captureButtonHeight = MediaQuery.sizeOf(context).height * 0.4;
+
+    return Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Captured: ${glasses.capturedImages.length}',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 24),
+          SizedBox(
+            height: captureButtonHeight,
+            child: FilledButton(
+              onPressed: _capture,
+              style: FilledButton.styleFrom(
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(32),
+                ),
+              ),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.camera_alt, size: 72),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Capture subtitle',
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                      color: Theme.of(context).colorScheme.onPrimary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          OutlinedButton(
+            onPressed: glasses.capturedImages.isEmpty
+                ? null
+                : _stopAndTranslate,
+            child: const Text('Stop & translate'),
+          ),
+          const SizedBox(height: 12),
+          TextButton(
+            onPressed: _cancelSession,
+            child: const Text('Cancel session'),
+          ),
+        ],
+      ),
     );
   }
 }
