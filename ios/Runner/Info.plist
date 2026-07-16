@@ -50,6 +50,11 @@
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
 
+	<!-- Only standard HTTPS is used, which is exempt from export compliance;
+	     this keeps TestFlight uploads from stalling on "Missing Compliance". -->
+	<key>ITSAppUsesNonExemptEncryption</key>
+	<false/>
+
 	<!-- Begin required section for Meta Wearables Device Access Toolkit. -->
 	<key>MWDAT</key>
 	<dict>
