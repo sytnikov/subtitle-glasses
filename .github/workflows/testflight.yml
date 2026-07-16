@@ -16,6 +16,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # meta_wearables_dat_flutter uses iOS 26 SDK symbols (e.g.
+      # AVAudioSession allowBluetoothHFP), so the default Xcode 16 on the
+      # macos-15 image can't compile it. Pick the newest Xcode 26.
+      - name: Select Xcode 26
+        run: |
+          ls -d /Applications/Xcode*.app
+          sudo xcode-select -s "$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)"
+          xcodebuild -version
+
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
