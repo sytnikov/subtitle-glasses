@@ -7,8 +7,10 @@ import 'package:provider/provider.dart';
 import '../models/session_record.dart';
 import '../services/claude_translation_service.dart';
 import '../services/glasses_service.dart';
-import '../services/secure_storage_service.dart';
+import '../services/google_translation_service.dart';
 import '../services/session_history_service.dart';
+import '../services/subtitle_translator.dart';
+import '../services/translation_settings_service.dart';
 import 'history_screen.dart';
 import 'results_screen.dart';
 import 'settings_screen.dart';
@@ -47,7 +49,7 @@ class _WatchScreenState extends State<WatchScreen> {
       await action();
     } on DatError catch (e) {
       _showError(_friendlyDatError(e));
-    } on ClaudeTranslationException catch (e) {
+    } on TranslationException catch (e) {
       _showError(e.message);
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -132,22 +134,15 @@ class _WatchScreenState extends State<WatchScreen> {
 
   Future<void> _stopAndTranslate() => _runGuarded(() async {
     final glasses = context.read<GlassesService>();
-    final storage = context.read<SecureStorageService>();
-    final translator = context.read<ClaudeTranslationService>();
     final history = context.read<SessionHistoryService>();
-
-    final apiKey = await storage.getApiKey();
-    if (apiKey == null || apiKey.isEmpty) {
-      await glasses.stopSession();
-      _showError('Set your Anthropic API key in Settings first.');
-      return;
-    }
+    final SubtitleTranslator translator =
+        switch (context.read<TranslationSettingsService>().provider) {
+      TranslationProvider.claude => context.read<ClaudeTranslationService>(),
+      TranslationProvider.google => context.read<GoogleTranslationService>(),
+    };
 
     final images = await glasses.stopSession();
-    final pairs = await translator.translateSession(
-      apiKey: apiKey,
-      images: images,
-    );
+    final pairs = await translator.translateSession(images);
 
     // Translation succeeded — release the captures so the watch screen
     // offers a fresh "Start session" instead of "Session interrupted".

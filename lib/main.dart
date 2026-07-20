@@ -4,8 +4,9 @@ import 'package:provider/provider.dart';
 import 'screens/watch_screen.dart';
 import 'services/claude_translation_service.dart';
 import 'services/glasses_service.dart';
-import 'services/secure_storage_service.dart';
+import 'services/google_translation_service.dart';
 import 'services/session_history_service.dart';
+import 'services/translation_settings_service.dart';
 
 void main() {
   runApp(const FinnishSubtitlesApp());
@@ -20,8 +21,11 @@ class FinnishSubtitlesApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => GlassesService()..init()),
         ChangeNotifierProvider(create: (_) => SessionHistoryService()..init()),
-        Provider(create: (_) => SecureStorageService()),
+        ChangeNotifierProvider(
+          create: (_) => TranslationSettingsService()..init(),
+        ),
         Provider(create: (_) => ClaudeTranslationService()),
+        Provider(create: (_) => GoogleTranslationService()),
       ],
       child: MaterialApp(
         title: 'Finnish Subtitles',

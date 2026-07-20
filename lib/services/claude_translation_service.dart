@@ -4,19 +4,16 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 
 import '../models/subtitle_pair.dart';
-
-class ClaudeTranslationException implements Exception {
-  ClaudeTranslationException(this.message);
-
-  final String message;
-
-  @override
-  String toString() => message;
-}
+import 'subtitle_translator.dart';
 
 /// Sends a batch of captured subtitle frames to Claude in as few requests
 /// as possible and returns the extracted Finnish -> Russian phrase table.
-class ClaudeTranslationService {
+///
+/// The API key is baked in at build time (CI passes it from a GitHub
+/// secret): `--dart-define=ANTHROPIC_API_KEY=...`
+class ClaudeTranslationService implements SubtitleTranslator {
+  static const _apiKey = String.fromEnvironment('ANTHROPIC_API_KEY');
+
   static const _endpoint = 'https://api.anthropic.com/v1/messages';
   static const _model = 'claude-sonnet-5';
   static const _anthropicVersion = '2023-06-01';
@@ -35,10 +32,14 @@ Respond with ONLY a JSON array, no markdown fences, no commentary, in this exact
 [{"finnish": "...", "russian": "..."}, ...]
 in capture order. If no subtitles are found at all, respond with [].''';
 
-  Future<List<SubtitlePair>> translateSession({
-    required String apiKey,
-    required List<Uint8List> images,
-  }) async {
+  @override
+  Future<List<SubtitlePair>> translateSession(List<Uint8List> images) async {
+    if (_apiKey.isEmpty) {
+      throw TranslationException(
+        'This build has no Claude API key. For local runs, pass '
+        '--dart-define=ANTHROPIC_API_KEY=sk-ant-...',
+      );
+    }
     if (images.isEmpty) return [];
 
     final results = <SubtitlePair>[];
@@ -49,15 +50,12 @@ in capture order. If no subtitles are found at all, respond with [].''';
             ? images.length
             : i + _maxImagesPerRequest,
       );
-      results.addAll(await _translateChunk(apiKey: apiKey, images: chunk));
+      results.addAll(await _translateChunk(chunk));
     }
     return results;
   }
 
-  Future<List<SubtitlePair>> _translateChunk({
-    required String apiKey,
-    required List<Uint8List> images,
-  }) async {
+  Future<List<SubtitlePair>> _translateChunk(List<Uint8List> images) async {
     final content = [
       for (final image in images)
         {
@@ -75,7 +73,7 @@ in capture order. If no subtitles are found at all, respond with [].''';
       Uri.parse(_endpoint),
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': apiKey,
+        'x-api-key': _apiKey,
         'anthropic-version': _anthropicVersion,
       },
       body: jsonEncode({
@@ -89,7 +87,7 @@ in capture order. If no subtitles are found at all, respond with [].''';
     );
 
     if (response.statusCode != 200) {
-      throw ClaudeTranslationException(
+      throw TranslationException(
         'Claude API error (${response.statusCode}): ${response.body}',
       );
     }
@@ -104,7 +102,7 @@ in capture order. If no subtitles are found at all, respond with [].''';
         )['text'] as String?;
 
     if (text == null) {
-      throw ClaudeTranslationException('Claude returned no text content.');
+      throw TranslationException('Claude returned no text content.');
     }
 
     return _parsePairs(text);
@@ -116,7 +114,7 @@ in capture order. If no subtitles are found at all, respond with [].''';
     try {
       parsed = jsonDecode(jsonText) as List<dynamic>;
     } on FormatException catch (e) {
-      throw ClaudeTranslationException(
+      throw TranslationException(
         'Could not parse Claude\'s response as JSON: $e',
       );
     }

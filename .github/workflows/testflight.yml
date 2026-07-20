@@ -56,8 +56,15 @@ jobs:
       # below re-signs with the distribution identity, so no signing here.
       # The build number comes from the monotonically increasing run number,
       # so every push produces a higher build than the last.
+      # API credentials are baked into the binary via dart-define (the
+      # archive step inherits them through Generated.xcconfig).
       - name: Build Flutter app
-        run: flutter build ios --release --no-codesign --build-number "$GITHUB_RUN_NUMBER"
+        run: >
+          flutter build ios --release --no-codesign
+          --build-number "$GITHUB_RUN_NUMBER"
+          --dart-define=ANTHROPIC_API_KEY="${{ secrets.ANTHROPIC_API_KEY }}"
+          --dart-define=GOOGLE_BACKEND_URL="${{ secrets.GOOGLE_BACKEND_URL }}"
+          --dart-define=GOOGLE_BACKEND_API_KEY="${{ secrets.GOOGLE_BACKEND_API_KEY }}"
 
       # Signing comes from ios/Flutter/Release.xcconfig (Runner target only);
       # passing it as CLI overrides here would break the SPM resource-bundle

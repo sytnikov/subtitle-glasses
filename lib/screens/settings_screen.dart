@@ -3,7 +3,7 @@ import 'package:meta_wearables_dat_flutter/meta_wearables_dat_flutter.dart';
 import 'package:provider/provider.dart';
 
 import '../services/glasses_service.dart';
-import '../services/secure_storage_service.dart';
+import '../services/translation_settings_service.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -13,42 +13,6 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  final _apiKeyController = TextEditingController();
-  bool _loading = true;
-  bool _saved = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadApiKey();
-  }
-
-  Future<void> _loadApiKey() async {
-    final storage = context.read<SecureStorageService>();
-    final key = await storage.getApiKey();
-    if (!mounted) return;
-    setState(() {
-      _apiKeyController.text = key ?? '';
-      _loading = false;
-    });
-  }
-
-  Future<void> _saveApiKey() async {
-    final storage = context.read<SecureStorageService>();
-    await storage.setApiKey(_apiKeyController.text.trim());
-    if (!mounted) return;
-    setState(() => _saved = true);
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(const SnackBar(content: Text('API key saved')));
-  }
-
-  @override
-  void dispose() {
-    _apiKeyController.dispose();
-    super.dispose();
-  }
-
   Future<void> _unpair(GlassesService glasses) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -103,56 +67,58 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final glasses = context.watch<GlassesService>();
+    final translationSettings = context.watch<TranslationSettingsService>();
 
     return Scaffold(
       appBar: AppBar(title: const Text('Settings')),
-      body: _loading
-          ? const Center(child: CircularProgressIndicator())
-          : ListView(
-              padding: const EdgeInsets.all(16),
+      body: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          const Text(
+            'Translation model',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          RadioGroup<TranslationProvider>(
+            groupValue: translationSettings.provider,
+            onChanged: (selected) {
+              if (selected != null) {
+                translationSettings.setProvider(selected);
+              }
+            },
+            child: Column(
               children: [
-                const Text(
-                  'Anthropic API key',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                TextField(
-                  controller: _apiKeyController,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    hintText: 'sk-ant-...',
-                    border: OutlineInputBorder(),
-                  ),
-                  onChanged: (_) => setState(() => _saved = false),
-                ),
-                const SizedBox(height: 8),
-                FilledButton(
-                  onPressed: _saved ? null : _saveApiKey,
-                  child: Text(_saved ? 'Saved' : 'Save'),
-                ),
-                const Divider(height: 48),
-                const Text(
-                  'Glasses connection',
-                  style: TextStyle(fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 8),
-                Text(_registrationLabel(glasses.registrationState)),
-                const SizedBox(height: 8),
-                Text(
-                  'Camera permission: '
-                  '${glasses.cameraPermissionGranted ? "granted" : "not granted"}',
-                ),
-                const SizedBox(height: 16),
-                if (glasses.registrationState == RegistrationState.registered)
-                  OutlinedButton(
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Theme.of(context).colorScheme.error,
-                    ),
-                    onPressed: () => _unpair(glasses),
-                    child: const Text('Unpair glasses'),
+                for (final provider in TranslationProvider.values)
+                  RadioListTile<TranslationProvider>(
+                    title: Text(provider.label),
+                    value: provider,
                   ),
               ],
             ),
+          ),
+          const Divider(height: 48),
+          const Text(
+            'Glasses connection',
+            style: TextStyle(fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text(_registrationLabel(glasses.registrationState)),
+          const SizedBox(height: 8),
+          Text(
+            'Camera permission: '
+            '${glasses.cameraPermissionGranted ? "granted" : "not granted"}',
+          ),
+          const SizedBox(height: 16),
+          if (glasses.registrationState == RegistrationState.registered)
+            OutlinedButton(
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Theme.of(context).colorScheme.error,
+              ),
+              onPressed: () => _unpair(glasses),
+              child: const Text('Unpair glasses'),
+            ),
+        ],
+      ),
     );
   }
 }

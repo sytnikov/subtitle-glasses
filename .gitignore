@@ -43,3 +43,7 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local API credentials for --dart-define-from-file (never commit)
+.env
+env.json
