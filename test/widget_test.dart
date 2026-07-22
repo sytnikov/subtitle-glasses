@@ -49,4 +49,30 @@ void main() {
     // Falls back to "now" rather than throwing.
     expect(record.capturedAt.difference(DateTime.now()).inSeconds.abs() < 5, isTrue);
   });
+
+  test('SessionRecord round-trips provider and elapsed time', () {
+    final record = SessionRecord(
+      capturedAt: DateTime.parse('2026-07-15T14:56:00'),
+      pairs: const [],
+      provider: 'Google',
+      elapsed: const Duration(milliseconds: 4300),
+    );
+
+    final restored = SessionRecord.fromJson(
+      jsonDecode(jsonEncode(record.toJson())) as Map<String, dynamic>,
+    );
+
+    expect(restored.provider, 'Google');
+    expect(restored.elapsed, const Duration(milliseconds: 4300));
+  });
+
+  test('SessionRecord leaves provider/elapsed null when absent', () {
+    final record = SessionRecord.fromJson({
+      'capturedAt': '2026-07-15T14:56:00.000',
+      'pairs': [],
+    });
+
+    expect(record.provider, isNull);
+    expect(record.elapsed, isNull);
+  });
 }

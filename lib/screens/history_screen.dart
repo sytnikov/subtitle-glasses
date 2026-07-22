@@ -41,7 +41,9 @@ class HistoryScreen extends StatelessWidget {
                     title: Text(_formatDate(record.capturedAt)),
                     subtitle: Text(
                       '${record.pairs.length} '
-                      'phrase${record.pairs.length == 1 ? '' : 's'}',
+                      'phrase${record.pairs.length == 1 ? '' : 's'}'
+                      '${record.provider == null ? '' : ' · ${record.provider}'}'
+                      '${record.elapsed == null ? '' : ' · ${(record.elapsed!.inMilliseconds / 1000).toStringAsFixed(1)}s'}',
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => Navigator.of(context).push(
@@ -49,6 +51,8 @@ class HistoryScreen extends StatelessWidget {
                         builder: (_) => ResultsScreen(
                           pairs: record.pairs,
                           showNewSessionButton: false,
+                          provider: record.provider,
+                          elapsed: record.elapsed,
                         ),
                       ),
                     ),

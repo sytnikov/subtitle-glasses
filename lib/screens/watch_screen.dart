@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 import 'package:meta_wearables_dat_flutter/meta_wearables_dat_flutter.dart';
@@ -135,14 +136,23 @@ class _WatchScreenState extends State<WatchScreen> {
   Future<void> _stopAndTranslate() => _runGuarded(() async {
     final glasses = context.read<GlassesService>();
     final history = context.read<SessionHistoryService>();
-    final SubtitleTranslator translator =
-        switch (context.read<TranslationSettingsService>().provider) {
+    final providerSetting = context.read<TranslationSettingsService>().provider;
+    final SubtitleTranslator translator = switch (providerSetting) {
       TranslationProvider.claude => context.read<ClaudeTranslationService>(),
       TranslationProvider.google => context.read<GoogleTranslationService>(),
     };
 
     final images = await glasses.stopSession();
+
+    final stopwatch = Stopwatch()..start();
     final pairs = await translator.translateSession(images);
+    stopwatch.stop();
+    developer.log(
+      'translateSession: provider=${providerSetting.label} '
+      'images=${images.length} pairs=${pairs.length} '
+      'elapsed=${stopwatch.elapsedMilliseconds}ms',
+      name: 'subtitle_glasses.translation',
+    );
 
     // Translation succeeded — release the captures so the watch screen
     // offers a fresh "Start session" instead of "Session interrupted".
@@ -151,14 +161,25 @@ class _WatchScreenState extends State<WatchScreen> {
 
     if (pairs.isNotEmpty) {
       await history.add(
-        SessionRecord(capturedAt: DateTime.now(), pairs: pairs),
+        SessionRecord(
+          capturedAt: DateTime.now(),
+          pairs: pairs,
+          provider: providerSetting.label,
+          elapsed: stopwatch.elapsed,
+        ),
       );
     }
 
     if (!mounted) return;
-    await Navigator.of(
-      context,
-    ).push(MaterialPageRoute(builder: (_) => ResultsScreen(pairs: pairs)));
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ResultsScreen(
+          pairs: pairs,
+          provider: providerSetting.label,
+          elapsed: stopwatch.elapsed,
+        ),
+      ),
+    );
   });
 
   @override
